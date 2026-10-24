@@ -88,6 +88,40 @@ Everything else is byte-transparent: request bodies (including zstd-compressed o
 
 ---
 
+## Send less — the other half of the fix
+
+The shim hides the rejection. It does not create capacity. The other half is making the request small enough to be admitted in the first place, and that part is free.
+
+**Start a new conversation.** The single biggest lever. Desktop Codex resends the whole thread on every turn; the app's own log reported `pre_compression_bytes ≈ 724,000` on a long-running thread, against ~89 KB for a fresh one. Nothing else you can do comes close.
+
+**Measure before you cut.** `tools/capture_server.py` stands in for the endpoint and saves the exact body your client sends:
+
+```powershell
+python tools\capture_server.py outdir 18090
+# point a throwaway provider at http://127.0.0.1:18090, run one turn, then read outdir
+```
+
+**Drop skills and plugins you do not use.** In a fresh desktop conversation the skill manifest alone was 20.4 KB across 72 skills. Removing 37 self-installed skills and four non-native plugins took the body from 89 KB to 71 KB (−20%).
+
+```powershell
+codex plugin remove <name>@<marketplace>
+```
+
+If the marketplace refuses — `Installed-by-default plugins cannot be uninstalled` — disable it in `config.toml` instead:
+
+```toml
+[plugins."<name>@<marketplace>"]
+enabled = false
+```
+
+Deleting a remote plugin's cache does **not** work: the app re-downloads it on start. It has to be removed or disabled.
+
+**Trim the memory block.** It was 12.8 KB in a fresh conversation and is resent every turn.
+
+**Compress attached images.** A task that attaches a reference image can open at 700+ KB on its first turn — and the first turn is the one that must not fail.
+
+---
+
 ## Quick start (Windows)
 
 ```powershell
@@ -143,8 +177,9 @@ python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-ba
 - **It does not touch your credentials.** Requests are forwarded with the headers Codex already sent, including your OAuth token. The shim never stores, logs or transmits them anywhere else.
 - **It does not modify request bodies.** Byte-for-byte passthrough.
 - **It does not bypass a limit.** It retries a request that the server declined to serve. It uses the same public custom-provider mechanism that people use to point Codex at Ollama or LM Studio.
-- **It is local.** A Python process on `127.0.0.1`. Delete one line from `config.toml` and you are back to direct connections.
+- **It is local, and it is not a relay service.** This is a Python process on `127.0.0.1` that forwards to the official endpoint. There is no third-party server, no shared account pool, no middleman that sees your token — the opposite of the mirror/shared-account services people usually mean by "reverse proxy". Delete one line from `config.toml` and you are back to direct connections.
 - **It retries only when nothing was generated**, so you cannot get duplicated or spliced output.
+- **On account risk:** I can't promise zero, since any client that changes request timing is outside the default behaviour. What it does *not* do is share credentials, impersonate the client, bypass quota, or reverse-engineer the protocol. It re-sends a request the server already declined — the same action as clicking retry, just before the error reaches you. If you want to be conservative, lower `--max-attempts` to 10 and widen the backoff.
 
 What it *cannot* fix: a genuinely exhausted quota, an expired login, or a broken network. Those are different errors and are passed through unchanged.
 
@@ -196,6 +231,7 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 ## Limitations
 
 - Single machine, single account, small samples. The size correlation is the signal; the specific percentages are noise-prone.
+- **I can't tell whether a retried request ends up on a different model than the one I asked for.** The shim sends the same model id every time, and the response's `served` model field can be logged to check — but I haven't seen a case where I could rule it out. For a Plus account the trade-off was worth it: at least it works at all.
 - The request-size figures come from one Codex version. Re-measure with `tools/capture_server.py` before trusting the absolute numbers.
 - The relay holds a request open while retrying. A very large retry budget plus a very slow link means a turn can appear to "think" for a long time before failing.
 - Windows launchers are included; the relay itself is cross-platform and runs anywhere Python does.
