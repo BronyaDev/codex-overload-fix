@@ -2,6 +2,8 @@
 
 A local retry shim that makes **"Selected model is at capacity. Please try a different model."** stop interrupting your work.
 
+**No git required:** [download v1.0.0 (zip)](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) — unzip and run `scripts\install.ps1`.
+
 | Before | After |
 |:---:|:---:|
 | ![Capacity errors interrupting the task](assets/before.png) | ![A multi-step task running to completion](assets/after.png) |

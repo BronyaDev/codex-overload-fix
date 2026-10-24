@@ -2,6 +2,8 @@
 
 一个本地重试中继，让 **「Selected model is at capacity. Please try a different model.」** 不再打断你干活。
 
+**不想用 git：** [下载 v1.0.0 压缩包](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) —— 解压后跑 `scripts\install.ps1` 即可。
+
 | 修复前 | 修复后 |
 |:---:|:---:|
 | ![满载报错不断打断任务](assets/before.png) | ![多轮任务完整跑完](assets/after.png) |
