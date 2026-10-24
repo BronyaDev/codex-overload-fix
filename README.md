@@ -242,6 +242,8 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 
 ## Limitations
 
+**This does not fix a degraded model.** If the model itself has started answering worse than it used to — whatever the cause — nothing here changes that. The shim only stops the capacity error from interrupting you; it cannot make the model smarter. What it does is turn *unusable* into *usable*. That is a smaller claim than "fixed", and it is the honest one.
+
 - Single machine, single account, small samples. The size correlation is the signal; the specific percentages are noise-prone.
 - **I can't tell whether a retried request ends up on a different model than the one I asked for.** The shim sends the same model id every time, and the response's `served` model field can be logged to check — but I haven't seen a case where I could rule it out. For a Plus account the trade-off was worth it: at least it works at all.
 - The request-size figures come from one Codex version. Re-measure with `tools/capture_server.py` before trusting the absolute numbers.
