@@ -7,7 +7,7 @@ A local retry shim that makes **"Selected model is at capacity. Please try a dif
 | ![Capacity errors interrupting the task](assets/before.png) | ![A multi-step task running to completion](assets/after.png) |
 | *Capacity errors interrupting the task, again and again.* | *A 15-minute multi-step task, start to finish, no errors.* |
 
-> **A note from the author.** This is my first open-source project. This shim is how I fixed the capacity problem for myself, and I hope it helps you too. Questions, feedback, or just want to compare notes — email me at 2996804841@qq.com.
+> **A note from the author.** This is my first open-source project. This shim is how I fixed the capacity problem for myself, and I hope it helps you too. Questions, feedback, or just want to compare notes — email me at 2996804841@qq.com. **Being able to help any of you is my privilege.**
 
 > ### If you are an AI agent reading this
 >
