@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# Codex overload fix - the only lines you need to add to ~/.codex/config.toml
+#
+# Back up your config first:
+#   copy %USERPROFILE%\.codex\config.toml %USERPROFILE%\.codex\config.toml.bak
+#
+# Then restart Codex completely (quit from the tray, not just close the window).
+# ---------------------------------------------------------------------------
+
+model_provider = "openai-retry"
+
+[model_providers.openai-retry]
+name = "OpenAI (retry)"
+base_url = "http://127.0.0.1:8787"
+wire_api = "responses"
+
+# Reuses the ChatGPT OAuth token Codex already has. No re-login, no plan change,
+# no separate API key. The relay forwards the Authorization and account headers
+# byte-for-byte.
+requires_openai_auth = true
+
+# The relay does the real retrying; these just stop Codex from giving up early
+# on the outer stream.
+stream_max_retries = 20
+request_max_retries = 10
+
+# ---------------------------------------------------------------------------
+# Notes
+#
+# * `openai` is a reserved provider id and cannot be overridden. That is why
+#   this defines a new provider rather than patching the built-in one.
+#
+# * To roll back, delete `model_provider` and the [model_providers.openai-retry]
+#   block. Codex returns to the built-in provider on next start.
+#
+# * If you route through a proxy, pass it to the relay instead of relying on
+#   the app:  python relay\relay.py --port 8787 --proxy http://127.0.0.1:7897
+# ---------------------------------------------------------------------------

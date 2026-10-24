@@ -1,0 +1,200 @@
+# Codex Overload Fix
+
+A local retry shim that makes **"Selected model is at capacity. Please try a different model."** stop interrupting your work.
+
+One evening of real use, before and after:
+
+| | requests | retries absorbed | failures shown to the user |
+|---|---|---|---|
+| Without the shim | — | — | interrupted every ~2 turns |
+| With the shim | 71 | 82 | **0** |
+
+> One 799 KB request failed **8 times in a row** and succeeded on the 9th attempt. The user never saw a thing.
+
+---
+
+## The problem
+
+Codex frequently returns:
+
+```
+Selected model is at capacity. Please try a different model.
+```
+
+It is not a quota problem. It is not a network problem. It is not the model being genuinely full. The error arrives as an **`error` event inside an HTTP 200 SSE stream**:
+
+```json
+{"type":"error","sequence_number":3,
+ "error":{"type":"service_unavailable_error",
+          "code":"server_is_overloaded",
+          "message":"Our servers are currently overloaded. Please try again later."}}
+```
+
+Because the status code is 200, nothing that retries on status codes ever sees it — no proxy, no HTTP library, and not the client's own retry layer. The stream is read to completion, then judged a failure. The client gives up after its default budget, and the user is told to switch models.
+
+That advice is misleading. What follows is why.
+
+---
+
+## What's actually happening
+
+The rejection rate tracks **request body size**, not model choice.
+
+Across 71 `/responses` calls in one evening on one account, the effect is not a gradient — it's a cliff:
+
+| request body | n | attempts needed (mean) | worst |
+|---|---|---|---|
+| < 100 KB | 20 | 1.95 | 5 |
+| 100–200 KB | 24 | 1.96 | 9 |
+| 200–500 KB | 23 | 1.74 | 4 |
+| **> 500 KB** | **4** | **6.75** | **9** |
+
+Below roughly 500 KB, size barely matters — every bucket sits around 1.7–2.0 attempts. Above it, the mean jumps to 6.8 and the worst case to 9. No sample landed between 430 KB and 768 KB, so the exact threshold is not pinned down.
+
+Two further observations:
+
+- **Concurrency compounds it.** The worst cases were three ~770 KB requests issued in the same second. That fits a per-minute admission window better than per-request randomness.
+- **Big requests tend to be the opening move.** A task that attaches a reference image starts at 700+ KB — and the first turn is the one that must succeed.
+
+Where the bulk comes from in a fresh desktop conversation (~89 KB total):
+
+| part | size |
+|---|---|
+| `additional_tools` (tool definitions) | 27.6 KB |
+| base system instructions | 17.7 KB |
+| skill manifest (with 72 skills installed) | 20.4 KB |
+| memory block | 12.8 KB |
+
+And on a long-running thread, the app's own log reported `pre_compression_bytes ≈ 724,000` — the conversation history dwarfs everything else. **Starting a new conversation is the single biggest lever.**
+
+---
+
+## What this does
+
+`relay/relay.py` is a single-file, stdlib-only HTTP shim. It sits between Codex and the real endpoint and does three things:
+
+1. **Recognises the overload.** It parses the SSE stream and matches `server_is_overloaded`, `server_overloaded`, `service_unavailable_error`, `flex_unavailable`, `queue_full`, and HTTP 429/5xx.
+2. **Retries — but only before commit.** Once any `response.output_text.delta` or `response.reasoning_summary_text.delta` has been emitted, it passes the stream straight through. Nothing is ever generated twice.
+3. **Stops when you stop.** It peeks the client socket; if Codex cancelled the turn or exited, retries are abandoned instead of burning quota.
+
+Everything else is byte-transparent: request bodies (including zstd-compressed ones), auth headers and SSE payloads are forwarded untouched.
+
+---
+
+## Quick start (Windows)
+
+```powershell
+git clone https://github.com/NewBeeM4n/codex-overload-fix.git
+cd codex-overload-fix
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+```
+
+The installer will:
+
+1. Locate Python (3.9+; stdlib only, no dependencies).
+2. Register a hidden launcher and a watchdog in `HKCU\...\Run` — no admin rights, no console window.
+3. Print the `config.toml` snippet you need to paste.
+
+Then edit `%USERPROFILE%\.codex\config.toml`:
+
+```toml
+model_provider = "openai-retry"
+
+[model_providers.openai-retry]
+name = "OpenAI (retry)"
+base_url = "http://127.0.0.1:8787"
+wire_api = "responses"
+requires_openai_auth = true      # reuses your existing ChatGPT OAuth — no re-login
+stream_max_retries = 20
+request_max_retries = 10
+```
+
+Restart Codex. You can confirm the shim is in the path by checking that `127.0.0.1:8787` has established connections while a turn is running.
+
+> `openai` is a reserved provider id and cannot be overridden. That is why this defines a new one.
+
+### If you use a proxy
+
+Pass it to the relay:
+
+```powershell
+python relay\relay.py --port 8787 --proxy http://127.0.0.1:7897 --log relay.log
+```
+
+The relay must reach `chatgpt.com` through whatever egress your Codex normally uses. If your machine-level proxy already covers it, omit `--proxy`.
+
+### Manual start
+
+```powershell
+python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
+```
+
+---
+
+## Is this safe?
+
+- **It does not touch your credentials.** Requests are forwarded with the headers Codex already sent, including your OAuth token. The shim never stores, logs or transmits them anywhere else.
+- **It does not modify request bodies.** Byte-for-byte passthrough.
+- **It does not bypass a limit.** It retries a request that the server declined to serve. It uses the same public custom-provider mechanism that people use to point Codex at Ollama or LM Studio.
+- **It is local.** A Python process on `127.0.0.1`. Delete one line from `config.toml` and you are back to direct connections.
+- **It retries only when nothing was generated**, so you cannot get duplicated or spliced output.
+
+What it *cannot* fix: a genuinely exhausted quota, an expired login, or a broken network. Those are different errors and are passed through unchanged.
+
+---
+
+## Diagnostic tools
+
+| tool | what it does |
+|---|---|
+| `tools/capture_server.py` | Stands in for the endpoint, saves the exact request body Codex sends, replies with a valid SSE stream. Use it to measure your own request size. |
+| `tools/analyze_log.py` | Reads `relay.log` and reports requests, retries, and a size-vs-attempts breakdown. |
+
+```powershell
+# measure what your client actually sends
+python tools\capture_server.py outdir 18090
+# then point a throwaway provider at http://127.0.0.1:18090
+
+# summarise a relay log
+python tools\analyze_log.py relay.log
+```
+
+---
+
+## What did *not* help
+
+Measured on the same machine, same account, over several sessions:
+
+| attempt | result |
+|---|---|
+| switching egress nodes | 5 networks, 30/30 requests succeeded, rejection rate unchanged |
+| switching models inside a bad window | all models degrade together |
+| changing system timezone | no effect across 5 changes |
+| changing `service_tier` | no difference across 8 alternating runs |
+| restarting the app | affects luck, not probability |
+
+---
+
+## What the upstream fix should look like
+
+Shedding load is the right mechanism — a server-side queue at this scale turns into a stampede when clients time out and retry. The problem is how the shed is signalled:
+
+- An admission failure should be a **503 with `Retry-After`**, not an `error` event inside a 200 stream. Then every reverse proxy, HTTP library and retry layer handles it for free.
+- If it must stay in-band, the client should treat `server_is_overloaded` as **retryable by default**, with backoff, instead of surfacing it.
+- The default retry budget for this class should be well above 5.
+- "Try a different model" is misleading for what looks like a size-based admission decision.
+
+---
+
+## Limitations
+
+- Single machine, single account, small samples. The size correlation is the signal; the specific percentages are noise-prone.
+- The request-size figures come from one Codex version. Re-measure with `tools/capture_server.py` before trusting the absolute numbers.
+- The relay holds a request open while retrying. A very large retry budget plus a very slow link means a turn can appear to "think" for a long time before failing.
+- Windows launchers are included; the relay itself is cross-platform and runs anywhere Python does.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
