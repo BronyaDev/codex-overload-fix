@@ -1,0 +1,130 @@
+name: macOS launcher
+
+on:
+  push:
+    paths:
+      - 'scripts/*.sh'
+      - 'relay/relay.py'
+      - '.github/workflows/macos.yml'
+  pull_request:
+    paths:
+      - 'scripts/*.sh'
+      - 'relay/relay.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LABEL: com.codex-overload-fix.relay
+
+jobs:
+  launchd:
+    name: macOS launcher
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash --version | head -1
+          bash -n scripts/install-mac.sh
+          bash -n scripts/uninstall-mac.sh
+
+      - name: Dry run changes nothing
+        run: |
+          bash scripts/install-mac.sh --dry-run > /tmp/dry.txt
+          grep -q KeepAlive /tmp/dry.txt
+          test ! -e "$HOME/Library/LaunchAgents/$LABEL.plist"
+          echo "dry run wrote nothing"
+
+      - name: The plist is valid and its argv really starts the relay
+        run: |
+          bash scripts/install-mac.sh --no-autostart
+          P="$HOME/Library/LaunchAgents/$LABEL.plist"
+          python3 - "$P" <<'PY'
+          import plistlib, sys
+          want = {"Label", "ProgramArguments", "RunAtLoad", "KeepAlive",
+                  "ProcessType", "StandardOutPath", "StandardErrorPath"}
+          p = plistlib.load(open(sys.argv[1], "rb"))
+          missing = want - set(p)
+          if missing:
+              sys.exit("plist missing keys: %s" % sorted(missing))
+          print("plist ok:", p["Label"])
+          print("argv:     ", " ".join(p["ProgramArguments"]))
+          PY
+          # Run exactly what launchd would exec, so the argument list is
+          # exercised even if the gui/ domain is unavailable on this runner.
+          python3 - "$P" > /tmp/argv.sh <<'PY'
+          import plistlib, shlex, sys
+          print("exec " + " ".join(shlex.quote(a) for a in
+                plistlib.load(open(sys.argv[1], "rb"))["ProgramArguments"]))
+          PY
+          bash /tmp/argv.sh &
+          RELAY_PID=$!
+          python3 - <<'PY'
+          import socket, sys, time
+          deadline = time.time() + 20
+          while time.time() < deadline:
+              try:
+                  socket.create_connection(("127.0.0.1", 8787), timeout=0.5).close()
+                  sys.exit(0)
+              except OSError:
+                  time.sleep(0.25)
+          sys.exit("the plist argv never listened on 127.0.0.1:8787")
+          PY
+          echo "plist argv listens"
+          kill "$RELAY_PID" 2>/dev/null || true
+          wait "$RELAY_PID" 2>/dev/null || true
+          bash scripts/uninstall-mac.sh --purge
+
+      - name: launchd loads the agent
+        run: |
+          set +e
+          bash scripts/install-mac.sh
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::installer exited $rc — launchd may be unavailable in this CI session (not a plist problem; the step above already proved the argv)"
+          fi
+          launchctl print "gui/$(id -u)/$LABEL" > /tmp/print.txt 2>&1
+          prc=$?
+          head -n 25 /tmp/print.txt
+          if [ "$prc" -eq 0 ]; then
+            echo "launchd accepted the agent"
+          else
+            echo "::warning::agent not visible in gui/$(id -u); see above"
+          fi
+          python3 - <<'PY'
+          import socket, sys, time
+          deadline = time.time() + 20
+          while time.time() < deadline:
+              try:
+                  socket.create_connection(("127.0.0.1", 8787), timeout=0.5).close()
+                  print("listening on 127.0.0.1:8787")
+                  sys.exit(0)
+              except OSError:
+                  time.sleep(0.25)
+          sys.exit("nothing is listening on 127.0.0.1:8787 after install")
+          PY
+
+      - name: Relay log
+        if: always()
+        run: |
+          L="$HOME/Library/Application Support/codex-overload-fix"
+          for f in relay.log relay.out; do
+            if [ -f "$L/$f" ]; then echo "--- $f ---"; cat "$L/$f"; fi
+          done
+
+      - name: Uninstall is clean
+        if: always()
+        run: |
+          bash scripts/uninstall-mac.sh --purge || true
+          test ! -e "$HOME/Library/LaunchAgents/$LABEL.plist"
+          test ! -e "$HOME/Library/Application Support/codex-overload-fix"
+          if launchctl print "gui/$(id -u)/$LABEL" > /dev/null 2>&1; then
+            echo "agent is still loaded after uninstall"
+            exit 1
+          fi
+          echo "uninstall clean"
