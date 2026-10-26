@@ -140,7 +140,9 @@ enabled = false
 
 ---
 
-## 快速开始（Windows）
+## 快速开始
+
+### Windows
 
 ```powershell
 git clone https://github.com/NewBeeM4n/codex-overload-fix.git
@@ -154,7 +156,29 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1
 2. 在 `HKCU\...\Run` 里注册隐藏启动器和看门狗——不需要管理员权限，不弹控制台窗口。
 3. 打印你需要粘贴的 `config.toml` 片段。
 
-然后编辑 `%USERPROFILE%\.codex\config.toml`：
+### macOS
+
+```bash
+git clone https://github.com/NewBeeM4n/codex-overload-fix.git
+cd codex-overload-fix
+bash scripts/install-mac.sh
+```
+
+它把中继注册成**用户级 LaunchAgent**（`~/Library/LaunchAgents/com.codex-overload-fix.relay.plist`），不需要管理员权限。这里既没有看门狗脚本，也没有窗口要藏：`launchd` 靠 `KeepAlive` 自己重启进程，所以下面那一整套 `wscript` / `SW_HIDE` 的机制在 macOS 上根本不存在。
+
+可选参数：`--port`、`--proxy`、`--python-path`、`--state-dir`、`--no-autostart`、`--dry-run`（只打印 plist，什么都不改）。
+
+```bash
+bash scripts/install-mac.sh --dry-run          # 先看一眼
+bash scripts/install-mac.sh --proxy http://127.0.0.1:7890
+bash scripts/uninstall-mac.sh                  # 卸载，加 --purge 连日志一起删
+```
+
+> **老实说：** 生成的 plist 已经验证过，测试中中继也是用完全相同的参数列表跑起来的，但 `launchctl` 这条路径**还没在真机 Mac 上跑过**。如果出问题，请开 issue。
+
+### 两个平台都一样，然后
+
+编辑 `~/.codex/config.toml`（Windows 上是 `%USERPROFILE%\.codex\config.toml`）：
 
 ```toml
 model_provider = "openai-retry"
@@ -172,7 +196,16 @@ request_max_retries = 10
 
 > `openai` 是保留 provider id，不能被覆盖，所以这里定义了一个新的。
 
-### 安装脚本为什么用 wscript，而不是 `-WindowStyle Hidden`
+### 卸载
+
+没有什么是不可逆的，两个平台都只是把中继停掉：
+
+- **Windows：** `powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1`
+- **macOS：** `bash scripts/uninstall-mac.sh`（加 `--purge` 连日志一起删）
+
+然后从 `config.toml` 里删掉 `model_provider` 那行和 `[model_providers.openai-retry]` 整块，重启 Codex。
+
+### Windows：安装脚本为什么用 wscript，而不是 `-WindowStyle Hidden`
 
 中继要按固定间隔永久驻留，所以屏幕上**一秒都不能出现窗口** —— 抢焦点的窗口会把全屏游戏踢出独占模式，而看门狗每次醒来都会触发一次。
 
@@ -188,7 +221,7 @@ request_max_retries = 10
 
 ### 如果你用代理
 
-把代理传给中继：
+把代理传给中继（或者直接传给安装脚本：`install.ps1 -Proxy ...` / `install-mac.sh --proxy ...`）：
 
 ```powershell
 python relay\relay.py --port 8787 --proxy http://127.0.0.1:7897 --log relay.log
@@ -198,8 +231,14 @@ python relay\relay.py --port 8787 --proxy http://127.0.0.1:7897 --log relay.log
 
 ### 手动启动
 
+任何有 Python 3.9+ 的系统都能跑，不用安装脚本，不设自启动：
+
 ```powershell
 python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
+```
+
+```bash
+python3 relay/relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
 ```
 
 ---
@@ -223,7 +262,7 @@ python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-ba
 |---|---|
 | `tools/capture_server.py` | 冒充端点，保存 Codex 实际发出的请求体，回一条合法的 SSE 流。用来测你自己的请求体积。 |
 | `tools/analyze_log.py` | 读 `relay.log`，统计请求数、重试数，以及体积与尝试次数的分布。 |
-| `tools/check_console_flash.py` | 验证 Windows 启动器是不是真的看不到窗口。每 5 毫秒采样一次，直接报出实际在屏时长，不用靠"应该没问题"来判断。 |
+| `tools/check_console_flash.py` | 仅 Windows。验证启动器是不是真的看不到窗口。每 5 毫秒采样一次，直接报出实际在屏时长，不用靠"应该没问题"来判断。 |
 
 ```powershell
 # 测你的客户端实际发多大
@@ -272,7 +311,7 @@ python tools\check_console_flash.py
 - **修复后不清楚是否会被路由到其他模型。** 中继每次发的都是同一个 model id，响应里的 `served` 字段也可以打日志核对，但我没有遇到能排除这种情况的样本。对于 Plus 用户来说，这笔账仍然划算：**最起码能用了**。
 - 请求体积数字来自某一个 Codex 版本。信绝对值之前请先用 `tools/capture_server.py` 自己量一次。
 - 中继在重试期间会一直挂着请求。重试预算很大 + 链路很慢时，一个回合可能「思考」很久才失败。
-- 启动脚本是 Windows 的；中继本身跨平台，有 Python 就能跑。
+- 启动脚本提供了 **Windows**（`scripts/install.ps1`）和 **macOS**（`scripts/install-mac.sh`）两份。中继本身跨平台、纯标准库，其他系统直接跑即可 —— 见[手动启动](#手动启动)。macOS 的 `launchctl` 路径只在非 Mac 环境验证过，还没在真机上跑过。
 
 ---
 

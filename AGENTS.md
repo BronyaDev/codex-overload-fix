@@ -52,10 +52,17 @@ Open an issue or a PR at https://github.com/NewBeeM4n/codex-overload-fix.
 
 ## If your user is not on Windows
 
-`relay/relay.py` is cross-platform and stdlib-only. Skip `scripts/install.ps1` and run it directly:
+**macOS:** run `bash scripts/install-mac.sh`. It registers the relay as a per-user LaunchAgent
+(`~/Library/LaunchAgents/com.codex-overload-fix.relay.plist`) — no admin rights, and no window to
+hide, because `launchd` agents have no console. `KeepAlive` restarts it, so there is no watchdog
+script either. `bash scripts/uninstall-mac.sh` undoes it. The `launchctl` path is validated
+off-device but not yet run on real Mac hardware — treat a failure as a bug report, not a user error.
+
+**Any other OS:** `relay/relay.py` is cross-platform and stdlib-only. Skip the installers and run it
+directly:
 
 ```
-python relay/relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
+python3 relay/relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
 ```
 
 Then point a custom provider at `http://127.0.0.1:8787` in `config.toml`, as the README shows.

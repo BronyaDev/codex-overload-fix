@@ -140,7 +140,9 @@ Deleting a remote plugin's cache does **not** work: the app re-downloads it on s
 
 ---
 
-## Quick start (Windows)
+## Quick start
+
+### Windows
 
 ```powershell
 git clone https://github.com/NewBeeM4n/codex-overload-fix.git
@@ -154,7 +156,29 @@ The installer will:
 2. Register a hidden launcher and a watchdog in `HKCU\...\Run` — no admin rights, no console window.
 3. Print the `config.toml` snippet you need to paste.
 
-Then edit `%USERPROFILE%\.codex\config.toml`:
+### macOS
+
+```bash
+git clone https://github.com/NewBeeM4n/codex-overload-fix.git
+cd codex-overload-fix
+bash scripts/install-mac.sh
+```
+
+It registers the relay as a per-user **LaunchAgent** (`~/Library/LaunchAgents/com.codex-overload-fix.relay.plist`). No admin rights. There is no watchdog script and no window to hide: `launchd` restarts the process itself via `KeepAlive`, so the whole `wscript`/`SW_HIDE` apparatus below does not exist on this platform.
+
+Options: `--port`, `--proxy`, `--python-path`, `--state-dir`, `--no-autostart`, `--dry-run` (prints the plist and changes nothing).
+
+```bash
+bash scripts/install-mac.sh --dry-run          # inspect first
+bash scripts/install-mac.sh --proxy http://127.0.0.1:7890
+bash scripts/uninstall-mac.sh                  # undo, add --purge to delete the log
+```
+
+> **Honest status:** the generated plist is validated and the relay is started from the exact same argument list in testing, but the `launchctl` path has not been run on real macOS hardware yet. If it misbehaves, open an issue.
+
+### Both platforms, then
+
+Edit `~/.codex/config.toml` (`%USERPROFILE%\.codex\config.toml` on Windows):
 
 ```toml
 model_provider = "openai-retry"
@@ -172,7 +196,16 @@ Restart Codex. You can confirm the shim is in the path by checking that `127.0.0
 
 > `openai` is a reserved provider id and cannot be overridden. That is why this defines a new one.
 
-### Why the installer uses wscript, not `-WindowStyle Hidden`
+### Undo
+
+Nothing is permanent, and the relay is stopped the same way on both platforms:
+
+- **Windows:** `powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1`
+- **macOS:** `bash scripts/uninstall-mac.sh` (add `--purge` to delete the log too)
+
+Then remove the `model_provider` line and the `[model_providers.openai-retry]` block from `config.toml` and restart Codex.
+
+### Windows: why the installer uses wscript, not `-WindowStyle Hidden`
 
 The relay runs forever on a fixed interval, so it must never put a window on screen — a window that steals focus can drop a fullscreen game out of exclusive mode, and it happens every time the watchdog wakes.
 
@@ -188,7 +221,7 @@ The first two appear at effectively the same moment — that is the proof the fl
 
 ### If you use a proxy
 
-Pass it to the relay:
+Pass it to the relay (or to the installer: `install.ps1 -Proxy ...` / `install-mac.sh --proxy ...`):
 
 ```powershell
 python relay\relay.py --port 8787 --proxy http://127.0.0.1:7897 --log relay.log
@@ -198,8 +231,14 @@ The relay must reach `chatgpt.com` through whatever egress your Codex normally u
 
 ### Manual start
 
+Any OS with Python 3.9+ — no install script, no autostart:
+
 ```powershell
 python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
+```
+
+```bash
+python3 relay/relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-base 1 --backoff-max 8
 ```
 
 ---
@@ -223,7 +262,7 @@ What it *cannot* fix: a genuinely exhausted quota, an expired login, or a broken
 |---|---|
 | `tools/capture_server.py` | Stands in for the endpoint, saves the exact request body Codex sends, replies with a valid SSE stream. Use it to measure your own request size. |
 | `tools/analyze_log.py` | Reads `relay.log` and reports requests, retries, and a size-vs-attempts breakdown. |
-| `tools/check_console_flash.py` | Verifies that a Windows launcher really is invisible. Samples every 5 ms and reports the actual on-screen duration, so you don't have to trust the flag. |
+| `tools/check_console_flash.py` | Windows only. Verifies that a launcher really is invisible. Samples every 5 ms and reports the actual on-screen duration, so you don't have to trust the flag. |
 
 ```powershell
 # measure what your client actually sends
@@ -272,7 +311,7 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 - **I can't tell whether a retried request ends up on a different model than the one I asked for.** The shim sends the same model id every time, and the response's `served` model field can be logged to check — but I haven't seen a case where I could rule it out. For a Plus account the trade-off was worth it: at least it works at all.
 - The request-size figures come from one Codex version. Re-measure with `tools/capture_server.py` before trusting the absolute numbers.
 - The relay holds a request open while retrying. A very large retry budget plus a very slow link means a turn can appear to "think" for a long time before failing.
-- Windows launchers are included; the relay itself is cross-platform and runs anywhere Python does.
+- Launchers ship for **Windows** (`scripts/install.ps1`) and **macOS** (`scripts/install-mac.sh`). The relay itself is cross-platform and stdlib-only, so anywhere else it runs directly — see [Manual start](#manual-start). The macOS `launchctl` path is validated off-device but not yet run on real Mac hardware.
 
 ---
 
