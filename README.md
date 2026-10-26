@@ -8,7 +8,7 @@ A local retry shim that makes **"Selected model is at capacity. Please try a dif
 >
 > But be fair about the comparison. Until OpenAI allocates more compute to your account, the real choice in front of you is not "this shim" versus "a model that works properly". It is "this shim" versus "being interrupted every two turns". **Between those two, there is no better option available to you.**
 
-**No git required:** [download v1.0.0 (zip)](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) — unzip and run `scripts\install.ps1`.
+**No git required:** [download v1.0.0 (zip)](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) — unzip and run `scripts\install.ps1` on Windows, or `bash scripts/install-mac.sh` on macOS.
 
 | Before | After |
 |:---:|:---:|
