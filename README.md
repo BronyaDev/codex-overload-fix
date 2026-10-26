@@ -207,7 +207,7 @@ python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-ba
 - **It retries only when nothing was generated**, so you cannot get duplicated or spliced output.
 - **On account risk:** I can't promise zero, since any client that changes request timing is outside the default behaviour. What it does *not* do is share credentials, impersonate the client, bypass quota, or reverse-engineer the protocol. It re-sends a request the server already declined — the same action as clicking retry, just before the error reaches you. If you want to be conservative, lower `--max-attempts` to 10 and widen the backoff.
 
-What it *cannot* fix: a genuinely exhausted quota, an expired login, or a broken network. Those are different errors and are passed through unchanged.
+What it *cannot* fix: a genuinely exhausted quota, an expired login, or a broken network — those are different errors and are passed through unchanged. Nor is it a fix for **a degraded model**: if the model itself has started answering worse than it used to, nothing here changes that. It stops the capacity error from interrupting you; it cannot make the model smarter. See [Limitations](#limitations).
 
 ---
 
