@@ -166,6 +166,20 @@ request_max_retries = 10
 
 > `openai` 是保留 provider id，不能被覆盖，所以这里定义了一个新的。
 
+### 安装脚本为什么用 wscript，而不是 `-WindowStyle Hidden`
+
+中继要按固定间隔永久驻留，所以屏幕上**一秒都不能出现窗口** —— 抢焦点的窗口会把全屏游戏踢出独占模式，而看门狗每次醒来都会触发一次。
+
+`powershell.exe -WindowStyle Hidden` **做不到这件事**。控制台窗口是进程创建时由 `conhost.exe` 建出来的，那个参数要等 PowerShell 起来之后才被解析。Windows 10 Pro 19045 实测：
+
+| 启动方式 | 首次可见 | 在屏幕上的时长 |
+|---|---|---|
+| 普通 `powershell.exe` | +295 ms | **1190 ms** |
+| `powershell.exe -WindowStyle Hidden` | +303 ms | **253 ms** |
+| `wscript.exe` → `Sh.Run(cmd, 0, False)` | — | **0 ms** |
+
+前两行的出现时刻几乎一样 —— 这就是「那个参数不可能成为解法」的证据。**如果你把 VBS 启动器换成直接用计划任务跑 PowerShell，闪屏就会回来。** 机制详见 [docs/windows-no-console-window.zh-CN.md](docs/windows-no-console-window.zh-CN.md)，想在自己机器上测就跑 `tools/check_console_flash.py`。
+
 ### 如果你用代理
 
 把代理传给中继：
@@ -203,6 +217,7 @@ python relay\relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-ba
 |---|---|
 | `tools/capture_server.py` | 冒充端点，保存 Codex 实际发出的请求体，回一条合法的 SSE 流。用来测你自己的请求体积。 |
 | `tools/analyze_log.py` | 读 `relay.log`，统计请求数、重试数，以及体积与尝试次数的分布。 |
+| `tools/check_console_flash.py` | 验证 Windows 启动器是不是真的看不到窗口。每 5 毫秒采样一次，直接报出实际在屏时长，不用靠"应该没问题"来判断。 |
 
 ```powershell
 # 测你的客户端实际发多大
@@ -211,6 +226,9 @@ python tools\capture_server.py outdir 18090
 
 # 汇总中继日志
 python tools\analyze_log.py relay.log
+
+# 证明你的启动器不闪窗
+python tools\check_console_flash.py
 ```
 
 ---

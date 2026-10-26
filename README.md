@@ -166,6 +166,20 @@ Restart Codex. You can confirm the shim is in the path by checking that `127.0.0
 
 > `openai` is a reserved provider id and cannot be overridden. That is why this defines a new one.
 
+### Why the installer uses wscript, not `-WindowStyle Hidden`
+
+The relay runs forever on a fixed interval, so it must never put a window on screen — a window that steals focus can drop a fullscreen game out of exclusive mode, and it happens every time the watchdog wakes.
+
+`powershell.exe -WindowStyle Hidden` does **not** do this. The console window is built by `conhost.exe` at process creation; the flag is only parsed afterwards. Measured on Windows 10 Pro 19045:
+
+| launch method | first visible | time on screen |
+|---|---|---|
+| plain `powershell.exe` | +295 ms | **1190 ms** |
+| `powershell.exe -WindowStyle Hidden` | +303 ms | **253 ms** |
+| `wscript.exe` → `Sh.Run(cmd, 0, False)` | — | **0 ms** |
+
+The first two appear at effectively the same moment — that is the proof the flag cannot be the fix. If you replace the VBS launcher with a scheduled task that runs PowerShell directly, you will reintroduce the flash. See [docs/windows-no-console-window.md](docs/windows-no-console-window.md) for the mechanism and `tools/check_console_flash.py` to measure it on your own machine.
+
 ### If you use a proxy
 
 Pass it to the relay:
@@ -203,6 +217,7 @@ What it *cannot* fix: a genuinely exhausted quota, an expired login, or a broken
 |---|---|
 | `tools/capture_server.py` | Stands in for the endpoint, saves the exact request body Codex sends, replies with a valid SSE stream. Use it to measure your own request size. |
 | `tools/analyze_log.py` | Reads `relay.log` and reports requests, retries, and a size-vs-attempts breakdown. |
+| `tools/check_console_flash.py` | Verifies that a Windows launcher really is invisible. Samples every 5 ms and reports the actual on-screen duration, so you don't have to trust the flag. |
 
 ```powershell
 # measure what your client actually sends
@@ -211,6 +226,9 @@ python tools\capture_server.py outdir 18090
 
 # summarise a relay log
 python tools\analyze_log.py relay.log
+
+# prove your launcher shows no window
+python tools\check_console_flash.py
 ```
 
 ---

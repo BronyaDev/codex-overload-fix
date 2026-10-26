@@ -56,6 +56,18 @@ python relay/relay.py --port 8787 --log relay.log --max-attempts 30 --backoff-ba
 
 Then point a custom provider at `http://127.0.0.1:8787` in `config.toml`, as the README shows.
 
+## If you are editing the Windows launchers
+
+**Do not "simplify" the VBS launchers into a scheduled task that runs PowerShell directly, and do
+not add `-WindowStyle Hidden`.** It does not work: `conhost.exe` builds the console window at
+process creation, and the flag is only parsed afterwards, so the window is visible for a few hundred
+milliseconds either way (measured: 1190 ms without the flag, 253 ms with it, 0 ms via `wscript` +
+`SW_HIDE`). The relay runs on a fixed interval forever, so that flash is a recurring focus steal —
+enough to kick a fullscreen game out of exclusive mode.
+
+Verify any change with `python tools\check_console_flash.py` before claiming a fix. See
+`docs/windows-no-console-window.md`.
+
 ## License
 
 MIT. Fork it, vendor it, ship it inside your own tooling — no permission needed.

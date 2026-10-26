@@ -108,7 +108,7 @@ COMMIT = {
 2. **退避带抖动。** 1 秒起、上限 8 秒、乘 1.6 递增并加 0.7~1.3 的随机抖动，最多 30 次 / 300 秒预算。
 3. **客户端走了就停。** 用 `select` + `MSG_PEEK` 探测本地 socket，Codex 取消或退出时立即放弃重试，不空烧额度。
 
-> Windows 注意两点：`schtasks` 建计划任务需要管理员权限，普通账户用 `HKCU\...\Run` 更省事；`powershell -WindowStyle Hidden` 挡不住控制台窗口，必须用 `wscript` + `SW_HIDE` 起一个 VBS 启动器。
+> Windows 注意两点：`schtasks` 建计划任务需要管理员权限，普通账户用 `HKCU\...\Run` 更省事；`powershell -WindowStyle Hidden` 挡不住控制台窗口，必须用 `wscript` + `SW_HIDE` 起一个 VBS 启动器。详见 [windows-no-console-window.zh-CN.md](windows-no-console-window.zh-CN.md)。
 
 ---
 

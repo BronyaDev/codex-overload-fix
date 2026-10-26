@@ -91,3 +91,13 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 **Caveats:** small samples, and the second machine isn't instrumented — that comparison is qualitative, not counted. I'd treat the size correlation as the signal and the specific percentages as noise-prone.
 
 Happy to share the shim source if it's useful — ~450 lines of stdlib Python.
+
+---
+
+### Appendix: the Windows launcher is not a detail
+
+Stuffing this into a scheduled task or a Run key is where most people stop, and `powershell.exe -WindowStyle Hidden` looks like it solves the remaining problem — no window on screen. It doesn't. The console window is built by `conhost.exe` when the process is created, and the flag is only parsed afterwards, so it stays visible for a few hundred milliseconds regardless.
+
+Measured here: 1190 ms visible with no flag, **253 ms with `-WindowStyle Hidden`**, 0 ms via `wscript.exe` + `SW_HIDE`. Both of the first two appear at the same moment (+295 ms / +303 ms), which is what shows the flag can't be the fix.
+
+That matters for this project specifically: the relay runs on a fixed interval forever, so a 250 ms flash is not a one-off annoyance but a recurring focus steal — enough to kick a fullscreen game out of exclusive mode. See [windows-no-console-window.md](windows-no-console-window.md) and `tools/check_console_flash.py`.
