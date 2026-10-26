@@ -6,9 +6,9 @@
 # has no console window to flash. None of the Windows SW_HIDE machinery is
 # needed here.
 #
-# Verification status: the plist this writes is validated in testing, but the
-# launchctl path has not been run on real macOS hardware yet. --dry-run prints
-# the plist and touches nothing. If it misbehaves, open an issue.
+# Verification status: exercised end-to-end on macOS in CI
+# (.github/workflows/macos.yml) -- launchctl accepts the plist, the agent
+# reports state = running, the relay listens, and uninstall removes it.
 set -euo pipefail
 
 PORT=8787
@@ -165,8 +165,10 @@ if [ "$NO_AUTOSTART" -eq 0 ]; then
         ok "launchctl load -w"
     fi
 
+    # A cold start on a slow or freshly booted machine can take well over five
+    # seconds: this waits up to 30.
     i=0
-    while [ "$i" -lt 20 ]; do
+    while [ "$i" -lt 120 ]; do
         if port_open "$PORT"; then
             ok "listening on 127.0.0.1:$PORT"
             break
@@ -174,8 +176,9 @@ if [ "$NO_AUTOSTART" -eq 0 ]; then
         i=$((i + 1))
         sleep 0.25
     done
-    if [ "$i" -ge 20 ]; then
-        warn "not listening yet - check $LOG_PATH"
+    if [ "$i" -ge 120 ]; then
+        warn "not listening after 30s - check $LOG_PATH"
+        launchctl print "gui/$UID/$LABEL" 2>/dev/null | sed -n '1,5p' >&2 || true
     fi
 else
     say "plist written; not loaded (--no-autostart)"

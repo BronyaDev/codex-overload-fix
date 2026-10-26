@@ -55,8 +55,9 @@ Open an issue or a PR at https://github.com/NewBeeM4n/codex-overload-fix.
 **macOS:** run `bash scripts/install-mac.sh`. It registers the relay as a per-user LaunchAgent
 (`~/Library/LaunchAgents/com.codex-overload-fix.relay.plist`) — no admin rights, and no window to
 hide, because `launchd` agents have no console. `KeepAlive` restarts it, so there is no watchdog
-script either. `bash scripts/uninstall-mac.sh` undoes it. The `launchctl` path is validated
-off-device but not yet run on real Mac hardware — treat a failure as a bug report, not a user error.
+script either. `bash scripts/uninstall-mac.sh` undoes it. This path is exercised on a real macOS
+runner in CI (`.github/workflows/macos.yml`), so a failure is a genuine bug — ask for the output of
+`launchctl print gui/$UID/com.codex-overload-fix.relay` and an issue.
 
 **Any other OS:** `relay/relay.py` is cross-platform and stdlib-only. Skip the installers and run it
 directly:

@@ -174,7 +174,7 @@ bash scripts/install-mac.sh --proxy http://127.0.0.1:7890
 bash scripts/uninstall-mac.sh                  # undo, add --purge to delete the log
 ```
 
-> **Honest status:** the generated plist is validated and the relay is started from the exact same argument list in testing, but the `launchctl` path has not been run on real macOS hardware yet. If it misbehaves, open an issue.
+> **Tested where it can be tested:** [`.github/workflows/macos.yml`](.github/workflows/macos.yml) runs this on a real macOS runner on every change — `launchctl` accepts the plist, the agent reports `state = running`, the relay listens, and uninstall removes it. The first run caught a readiness check that gave up too early; it waits 30 s now. Intel Macs and older macOS releases are still untested — open an issue if it misbehaves.
 
 ### Both platforms, then
 
@@ -311,7 +311,7 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 - **I can't tell whether a retried request ends up on a different model than the one I asked for.** The shim sends the same model id every time, and the response's `served` model field can be logged to check — but I haven't seen a case where I could rule it out. For a Plus account the trade-off was worth it: at least it works at all.
 - The request-size figures come from one Codex version. Re-measure with `tools/capture_server.py` before trusting the absolute numbers.
 - The relay holds a request open while retrying. A very large retry budget plus a very slow link means a turn can appear to "think" for a long time before failing.
-- Launchers ship for **Windows** (`scripts/install.ps1`) and **macOS** (`scripts/install-mac.sh`). The relay itself is cross-platform and stdlib-only, so anywhere else it runs directly — see [Manual start](#manual-start). The macOS `launchctl` path is validated off-device but not yet run on real Mac hardware.
+- Launchers ship for **Windows** (`scripts/install.ps1`) and **macOS** (`scripts/install-mac.sh`). The relay itself is cross-platform and stdlib-only, so anywhere else it runs directly — see [Manual start](#manual-start). The macOS path is verified on GitHub's `macos-latest` runner (arm64, current macOS); Intel Macs and older releases are untested.
 
 ---
 

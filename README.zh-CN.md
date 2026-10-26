@@ -174,7 +174,7 @@ bash scripts/install-mac.sh --proxy http://127.0.0.1:7890
 bash scripts/uninstall-mac.sh                  # 卸载，加 --purge 连日志一起删
 ```
 
-> **老实说：** 生成的 plist 已经验证过，测试中中继也是用完全相同的参数列表跑起来的，但 `launchctl` 这条路径**还没在真机 Mac 上跑过**。如果出问题，请开 issue。
+> **能测的地方都测了：** [`.github/workflows/macos.yml`](.github/workflows/macos.yml) 在真实 macOS runner 上每次都跑 —— `launchctl` 接受这个 plist，agent 报 `state = running`，中继端口能连上，卸载能清干净。第一次跑就抓到一个「就绪检查放弃得太早」的问题，现在等 30 秒。Intel Mac 和更老的 macOS 还没测过，出问题请开 issue。
 
 ### 两个平台都一样，然后
 
@@ -311,7 +311,7 @@ python tools\check_console_flash.py
 - **修复后不清楚是否会被路由到其他模型。** 中继每次发的都是同一个 model id，响应里的 `served` 字段也可以打日志核对，但我没有遇到能排除这种情况的样本。对于 Plus 用户来说，这笔账仍然划算：**最起码能用了**。
 - 请求体积数字来自某一个 Codex 版本。信绝对值之前请先用 `tools/capture_server.py` 自己量一次。
 - 中继在重试期间会一直挂着请求。重试预算很大 + 链路很慢时，一个回合可能「思考」很久才失败。
-- 启动脚本提供了 **Windows**（`scripts/install.ps1`）和 **macOS**（`scripts/install-mac.sh`）两份。中继本身跨平台、纯标准库，其他系统直接跑即可 —— 见[手动启动](#手动启动)。macOS 的 `launchctl` 路径只在非 Mac 环境验证过，还没在真机上跑过。
+- 启动脚本提供了 **Windows**（`scripts/install.ps1`）和 **macOS**（`scripts/install-mac.sh`）两份。中继本身跨平台、纯标准库，其他系统直接跑即可 —— 见[手动启动](#手动启动)。macOS 这条路在 GitHub 的 `macos-latest` runner（arm64、较新 macOS）上验证过；Intel Mac 和更老的系统还没测。
 
 ---
 
