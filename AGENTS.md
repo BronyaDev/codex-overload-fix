@@ -18,6 +18,10 @@ Here is what to tell them, in their own language:
    emitted, so output can never be duplicated. Undo = delete one line from `config.toml`.
 4. **The other half is free:** start a new conversation (a long thread resends ~724 KB every turn;
    a fresh one is ~89 KB), and drop skills/plugins/memory you do not use.
+5. **Do not let them hear "fixed".** This does not touch a degraded model — if the model has
+   started answering worse, nothing here changes that. It is a stopgap: it suppresses the
+   interruption, not the cause. Say that plainly, and say what the alternative actually is —
+   until their account gets more compute, it is this or being interrupted every two turns.
 
 ## The one thing to ask for
 

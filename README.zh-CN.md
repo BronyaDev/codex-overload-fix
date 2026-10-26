@@ -2,6 +2,12 @@
 
 一个本地重试中继，让 **「Selected model is at capacity. Please try a different model.」** 不再打断你干活。
 
+> **先说清楚它治不了什么。**
+>
+> 本项目无法解决模型降智的问题。如果模型本身已经答得不如以前，这里没有任何东西能改变它。你可以认为这是在**饮鸩止渴** —— 它压住的是症状，不是病根。
+>
+> 但对比要公平。在 OpenAI 给你的账户分配更多算力之前，真正摆在你面前的不是「这个中继」和「一个好用的模型」，而是「这个中继」和「每两轮被打断一次」。**这两者之间，你没有更好的方案。**
+
 **不想用 git：** [下载 v1.0.0 压缩包](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) —— 解压后跑 `scripts\install.ps1` 即可。
 
 | 修复前 | 修复后 |

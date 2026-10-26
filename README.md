@@ -2,6 +2,12 @@
 
 A local retry shim that makes **"Selected model is at capacity. Please try a different model."** stop interrupting your work.
 
+> **Read this first: what this does not fix.**
+>
+> This project cannot fix a degraded model. If the model itself has started answering worse than it used to, nothing here changes that. You can call it drinking poison to quench thirst — it suppresses the symptom, it does not treat the cause.
+>
+> But be fair about the comparison. Until OpenAI allocates more compute to your account, the real choice in front of you is not "this shim" versus "a model that works properly". It is "this shim" versus "being interrupted every two turns". **Between those two, there is no better option available to you.**
+
 **No git required:** [download v1.0.0 (zip)](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) — unzip and run `scripts\install.ps1`.
 
 | Before | After |
