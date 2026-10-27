@@ -117,15 +117,20 @@ emit_unit() {
 [Unit]
 Description=Codex overload retry relay
 Documentation=https://github.com/NewBeeM4n/codex-overload-fix
-After=network-online.target
-Wants=network-online.target
+# No After=/Wants=network-online.target here. That target belongs to the system
+# manager; a --user manager does not pull it in and has no equivalent, so the
+# lines would be inert while looking like real ordering. Restart=always is what
+# actually covers a network that is not up yet.
 
 [Service]
 Type=simple
 ExecStart=$(quote_argv)
 WorkingDirectory=$STATE_DIR
 Restart=always
-RestartSec=3
+# 10 s matches ThrottleInterval on macOS. If something else already holds the
+# port - a hand-started relay, say - this keeps the crash loop at one line per
+# 10 s instead of one per 3 s.
+RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
@@ -161,13 +166,21 @@ emit_unit > "$UNIT_PATH"
 ok "unit       $UNIT_PATH"
 
 # ---------------------------------------------------------------- load it
+# SYSTEMD_OK records whether we could actually hand this to systemd. It is a
+# flag, not an early exit: the config.toml block at the end is the next step the
+# user needs either way, and a machine that cannot use systemd is exactly the
+# machine that most needs to be told how to point Codex at the relay.
+SYSTEMD_OK=1
 if [ "$NO_AUTOSTART" -eq 0 ]; then
     if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
+        SYSTEMD_OK=0
         warn "systemd --user is not available on this machine"
-        warn "start it by hand with:"
+        warn "the unit is written; start it by hand with:"
         warn "  $(quote_argv)"
-        exit 0
     fi
+fi
+
+if [ "$NO_AUTOSTART" -eq 0 ] && [ "$SYSTEMD_OK" -eq 1 ]; then
     systemctl --user daemon-reload
     systemctl --user enable "$SERVICE" >/dev/null
     # restart, not start: re-running the installer has to pick up a changed unit
@@ -189,7 +202,7 @@ if [ "$NO_AUTOSTART" -eq 0 ]; then
         warn "not listening after 30s - check: journalctl --user -u $SERVICE -n 50 --no-pager"
         systemctl --user status "$SERVICE" --no-pager 2>/dev/null | sed -n '1,5p' >&2 || true
     fi
-else
+elif [ "$NO_AUTOSTART" -eq 1 ]; then
     say "unit written; not loaded (--no-autostart)"
 fi
 
@@ -203,6 +216,14 @@ if [ "$LINGER" -eq 1 ]; then
 fi
 
 # ---------------------------------------------------------------- next steps
+# On a box without systemd --user, "systemctl --user status" is not a thing the
+# user can run, so print the command that actually starts the relay instead.
+if [ "$SYSTEMD_OK" -eq 1 ]; then
+    runtime_hint="Status:  systemctl --user status $SERVICE"
+else
+    runtime_hint="Start:   $(quote_argv)"
+fi
+
 cat <<EOF
 
 Add this to ~/.codex/config.toml, then restart Codex:
@@ -220,7 +241,7 @@ request_max_retries = 10
 Keep a backup of config.toml before editing.
 
 Log:     $LOG_PATH
-Status:  systemctl --user status $SERVICE
+$runtime_hint
 Stop:    bash scripts/uninstall-linux.sh
 
 If you move or delete this folder, re-run the installer; systemd points at the

@@ -51,6 +51,24 @@ if command -v systemctl >/dev/null 2>&1; then
     systemctl --user daemon-reload 2>/dev/null || true
 fi
 
+# --linger turned lingering on, so --purge turns it back off. Not unconditional:
+# lingering is machine-wide logind policy and the user may want it for other
+# services that have nothing to do with this relay.
+if [ "$PURGE" -eq 1 ]; then
+    if command -v loginctl >/dev/null 2>&1; then
+        linger_state="$(loginctl show-user "$USER" -p Linger --value 2>/dev/null || echo unknown)"
+        if [ "$linger_state" = "yes" ]; then
+            if loginctl disable-linger "$USER" 2>/dev/null; then
+                ok "loginctl disable-linger $USER"
+            else
+                say "could not disable lingering; run: loginctl disable-linger $USER"
+            fi
+        else
+            say "lingering was not enabled (nothing to undo)"
+        fi
+    fi
+fi
+
 if [ "$PURGE" -eq 1 ] && [ -d "$STATE_DIR" ]; then
     rm -rf "$STATE_DIR"
     ok "removed $STATE_DIR"
