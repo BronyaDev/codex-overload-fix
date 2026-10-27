@@ -171,9 +171,12 @@ ok "unit       $UNIT_PATH"
 # user needs either way, and a machine that cannot use systemd is exactly the
 # machine that most needs to be told how to point Codex at the relay.
 SYSTEMD_OK=1
-if [ "$NO_AUTOSTART" -eq 0 ]; then
-    if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
-        SYSTEMD_OK=0
+# Probed even under --no-autostart: the closing block asks the same question, and
+# on a no-systemd box it must print the start command rather than a systemctl
+# line the user cannot run.
+if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then
+    SYSTEMD_OK=0
+    if [ "$NO_AUTOSTART" -eq 0 ]; then
         warn "systemd --user is not available on this machine"
         warn "the unit is written; start it by hand with:"
         warn "  $(quote_argv)"
