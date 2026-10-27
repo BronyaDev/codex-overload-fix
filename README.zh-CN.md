@@ -8,7 +8,7 @@
 >
 > 但对比要公平。在 OpenAI 给你的账户分配更多算力之前，真正摆在你面前的不是「这个中继」和「一个好用的模型」，而是「这个中继」和「每两轮被打断一次」。**这两者之间，你没有更好的方案。**
 
-**不想用 git：** [下载 v1.2.0 压缩包](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) —— 解压后 Windows 跑 `scripts\install.ps1`，macOS 跑 `bash scripts/install-mac.sh`，Linux 跑 `bash scripts/install-linux.sh`。
+**不想用 git：** [下载 v1.2.1 压缩包](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) —— 解压后 Windows 跑 `scripts\install.ps1`，macOS 跑 `bash scripts/install-mac.sh`，Linux 跑 `bash scripts/install-linux.sh`。
 
 | 修复前 | 修复后 |
 |:---:|:---:|
