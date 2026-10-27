@@ -341,6 +341,20 @@ python tools\check_console_flash.py
 
 ---
 
+## 贡献者
+
+<a href="https://github.com/NewBeeM4n"><img src="https://avatars.githubusercontent.com/u/308389593?v=4&s=96" width="48" height="48" alt="NewBeeM4n"></a>&nbsp;
+<a href="https://github.com/JSVan32"><img src="https://avatars.githubusercontent.com/u/275063765?v=4&s=96" width="48" height="48" alt="JSVan32"></a>
+
+| 贡献者 | 贡献内容 |
+|---|---|
+| [@NewBeeM4n](https://github.com/NewBeeM4n) | 中继本体和它背后全部的实测数据、Windows 与 macOS 启动脚本、打包工具、文档。 |
+| [@JSVan32](https://github.com/JSVan32) | Linux 启动脚本 —— `scripts/install-linux.sh`、`scripts/uninstall-linux.sh` 和 `.github/workflows/linux.yml`，见 [#1](https://github.com/NewBeeM4n/codex-overload-fix/pull/1)。 |
+
+任何形式的贡献都欢迎：一个 bug 报告、一次你在自己机器上的实测、对上文某处的纠正，或者一个修复。开 issue 或提 PR 都行。
+
+---
+
 ## 许可证
 
 MIT — 见 [LICENSE](LICENSE)。

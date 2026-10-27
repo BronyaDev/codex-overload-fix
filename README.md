@@ -342,6 +342,20 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 
 ---
 
+## Contributors
+
+<a href="https://github.com/NewBeeM4n"><img src="https://avatars.githubusercontent.com/u/308389593?v=4&s=96" width="48" height="48" alt="NewBeeM4n"></a>&nbsp;
+<a href="https://github.com/JSVan32"><img src="https://avatars.githubusercontent.com/u/275063765?v=4&s=96" width="48" height="48" alt="JSVan32"></a>
+
+| contributor | contribution |
+|---|---|
+| [@NewBeeM4n](https://github.com/NewBeeM4n) | The relay and every measurement behind it, the Windows and macOS launchers, the release tooling, the documentation. |
+| [@JSVan32](https://github.com/JSVan32) | The Linux launcher — `scripts/install-linux.sh`, `scripts/uninstall-linux.sh` and `.github/workflows/linux.yml` — in [#1](https://github.com/NewBeeM4n/codex-overload-fix/pull/1). |
+
+Contributions of any size are welcome: a bug report, a measurement from your own machine, a correction to something above, or a fix. Open an issue or a pull request.
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
