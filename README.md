@@ -8,7 +8,7 @@ A local retry shim that makes **"Selected model is at capacity. Please try a dif
 >
 > But be fair about the comparison. Until OpenAI allocates more compute to your account, the real choice in front of you is not "this shim" versus "a model that works properly". It is "this shim" versus "being interrupted every two turns". **Between those two, there is no better option available to you.**
 
-**No git required:** [download v1.1.0 (zip)](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) — unzip and run `scripts\install.ps1` on Windows, or `bash scripts/install-mac.sh` on macOS.
+**No git required:** [download v1.1.0 (zip)](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) — unzip and run `scripts\install.ps1` on Windows, `bash scripts/install-mac.sh` on macOS, or `bash scripts/install-linux.sh` on Linux.
 
 | Before | After |
 |:---:|:---:|
@@ -176,7 +176,33 @@ bash scripts/uninstall-mac.sh                  # undo, add --purge to delete the
 
 > **Tested where it can be tested:** [`.github/workflows/macos.yml`](.github/workflows/macos.yml) runs this on a real macOS runner on every change — `launchctl` accepts the plist, the agent reports `state = running`, the relay listens, and uninstall removes it. The first run caught a readiness check that gave up too early; it waits 30 s now. Intel Macs and older macOS releases are still untested — open an issue if it misbehaves.
 
-### Both platforms, then
+### Linux
+
+```bash
+git clone https://github.com/NewBeeM4n/codex-overload-fix.git
+cd codex-overload-fix
+bash scripts/install-linux.sh
+```
+
+It registers the relay as a **systemd `--user`** service (`~/.config/systemd/user/codex-overload-fix.service`). No root, no `sudo`, no console window — `systemd` restarts the process itself via `Restart=always`, so there is no watchdog script here either.
+
+Options: `--port`, `--proxy`, `--python-path`, `--state-dir`, `--no-autostart`, `--dry-run` (prints the unit and changes nothing), plus `--linger`.
+
+```bash
+bash scripts/install-linux.sh --dry-run        # inspect first
+bash scripts/install-linux.sh --proxy http://127.0.0.1:7890
+bash scripts/install-linux.sh --linger         # keep it running after logout (servers, SSH boxes)
+bash scripts/uninstall-linux.sh                # undo, add --purge to delete the log
+```
+
+Two Linux-specific notes:
+
+- **Proxy settings are not inherited.** A systemd `--user` unit does not read `~/.bashrc`, so `HTTPS_PROXY` never reaches the relay. Pass `--proxy` (or bake the variable into the unit yourself). Only HTTP proxy URLs work — the relay speaks `CONNECT`, not SOCKS.
+- **`--linger`** matters on machines you reach over SSH: without it, systemd stops your user services when your last session ends. On a desktop you are always logged into, it changes nothing.
+
+> **Tested where it can be tested:** [`.github/workflows/linux.yml`](.github/workflows/linux.yml) runs this on a real Ubuntu runner on every change. `systemd --user` is not always available inside a CI session, so the workflow does not rely on it alone: it parses `ExecStart=` out of the written unit, runs exactly that argv, and probes the port — the same approach `macos.yml` uses for the plist. If `systemctl --user` is available it also enables, starts and asserts the service. WSL2 and containers usually have no `logind`: there the installer writes the unit, prints the command to run it by hand, and exits cleanly.
+
+### All platforms, then
 
 Edit `~/.codex/config.toml` (`%USERPROFILE%\.codex\config.toml` on Windows):
 
@@ -198,10 +224,11 @@ Restart Codex. You can confirm the shim is in the path by checking that `127.0.0
 
 ### Undo
 
-Nothing is permanent, and the relay is stopped the same way on both platforms:
+Nothing is permanent, and the relay is stopped the same way on every platform:
 
 - **Windows:** `powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1`
 - **macOS:** `bash scripts/uninstall-mac.sh` (add `--purge` to delete the log too)
+- **Linux:** `bash scripts/uninstall-linux.sh` (add `--purge` to delete the log too)
 
 Then remove the `model_provider` line and the `[model_providers.openai-retry]` block from `config.toml` and restart Codex.
 
@@ -311,7 +338,7 @@ Shedding load is the right mechanism — a server-side queue at this scale turns
 - **I can't tell whether a retried request ends up on a different model than the one I asked for.** The shim sends the same model id every time, and the response's `served` model field can be logged to check — but I haven't seen a case where I could rule it out. For a Plus account the trade-off was worth it: at least it works at all.
 - The request-size figures come from one Codex version. Re-measure with `tools/capture_server.py` before trusting the absolute numbers.
 - The relay holds a request open while retrying. A very large retry budget plus a very slow link means a turn can appear to "think" for a long time before failing.
-- Launchers ship for **Windows** (`scripts/install.ps1`) and **macOS** (`scripts/install-mac.sh`). The relay itself is cross-platform and stdlib-only, so anywhere else it runs directly — see [Manual start](#manual-start). The macOS path is verified on GitHub's `macos-latest` runner (arm64, current macOS); Intel Macs and older releases are untested.
+- Launchers ship for **Windows** (`scripts/install.ps1`), **macOS** (`scripts/install-mac.sh`) and **Linux** (`scripts/install-linux.sh`). The relay itself is cross-platform and stdlib-only, so anywhere else it runs directly — see [Manual start](#manual-start). The macOS path is verified on GitHub's `macos-latest` runner (arm64, current macOS) and the Linux path on `ubuntu-latest`; Intel Macs, older macOS releases and non-systemd Linux systems are untested.
 
 ---
 

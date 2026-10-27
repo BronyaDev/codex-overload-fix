@@ -8,7 +8,7 @@
 >
 > 但对比要公平。在 OpenAI 给你的账户分配更多算力之前，真正摆在你面前的不是「这个中继」和「一个好用的模型」，而是「这个中继」和「每两轮被打断一次」。**这两者之间，你没有更好的方案。**
 
-**不想用 git：** [下载 v1.1.0 压缩包](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) —— 解压后 Windows 跑 `scripts\install.ps1`，macOS 跑 `bash scripts/install-mac.sh`。
+**不想用 git：** [下载 v1.1.0 压缩包](https://github.com/NewBeeM4n/codex-overload-fix/releases/latest) —— 解压后 Windows 跑 `scripts\install.ps1`，macOS 跑 `bash scripts/install-mac.sh`，Linux 跑 `bash scripts/install-linux.sh`。
 
 | 修复前 | 修复后 |
 |:---:|:---:|
@@ -176,7 +176,33 @@ bash scripts/uninstall-mac.sh                  # 卸载，加 --purge 连日志�
 
 > **能测的地方都测了：** [`.github/workflows/macos.yml`](.github/workflows/macos.yml) 在真实 macOS runner 上每次都跑 —— `launchctl` 接受这个 plist，agent 报 `state = running`，中继端口能连上，卸载能清干净。第一次跑就抓到一个「就绪检查放弃得太早」的问题，现在等 30 秒。Intel Mac 和更老的 macOS 还没测过，出问题请开 issue。
 
-### 两个平台都一样，然后
+### Linux
+
+```bash
+git clone https://github.com/NewBeeM4n/codex-overload-fix.git
+cd codex-overload-fix
+bash scripts/install-linux.sh
+```
+
+它把中继注册成 **systemd `--user`** 服务（`~/.config/systemd/user/codex-overload-fix.service`）。不需要 root、不需要 `sudo`、没有控制台窗口——`systemd` 靠 `Restart=always` 自己重启进程，所以这里同样没有看门狗脚本。
+
+可选参数：`--port`、`--proxy`、`--python-path`、`--state-dir`、`--no-autostart`、`--dry-run`（只打印 unit，什么都不改），另外多一个 `--linger`。
+
+```bash
+bash scripts/install-linux.sh --dry-run        # 先看一眼
+bash scripts/install-linux.sh --proxy http://127.0.0.1:7890
+bash scripts/install-linux.sh --linger         # 退出登录也不停（服务器、SSH 常连的机器）
+bash scripts/uninstall-linux.sh                # 卸载，加 --purge 连日志一起删
+```
+
+两个 Linux 特有的点：
+
+- **代理不继承。** systemd `--user` 不读 `~/.bashrc`，`HTTPS_PROXY` 到不了中继，得用 `--proxy` 传（或者你自己把变量写进 unit）。只支持 HTTP 代理地址——中继走 `CONNECT`，不支持 SOCKS。
+- **`--linger`** 对 SSH 连的机器很关键：不开的话，你最后一个会话结束时 systemd 会把用户服务停掉。一直在桌面登录的机器无所谓。
+
+> **能测的地方都测了：** [`.github/workflows/linux.yml`](.github/workflows/linux.yml) 在真实 Ubuntu runner 上每次都跑。CI 会话里 `systemd --user` 不一定可用，所以它不只依赖 `systemctl`：它从写出的 unit 里解析 `ExecStart=`，把这条 argv 原样跑起来并探测端口——和 `macos.yml` 对待 plist 的做法一致。`systemctl --user` 可用时，它还会真的 enable、start 并断言服务是 active。WSL2 和容器里通常没有 `logind`：这种环境下安装器会写好 unit、打印手动启动命令，然后正常退出。
+
+### 三个平台都一样，然后
 
 编辑 `~/.codex/config.toml`（Windows 上是 `%USERPROFILE%\.codex\config.toml`）：
 
@@ -311,7 +337,7 @@ python tools\check_console_flash.py
 - **修复后不清楚是否会被路由到其他模型。** 中继每次发的都是同一个 model id，响应里的 `served` 字段也可以打日志核对，但我没有遇到能排除这种情况的样本。对于 Plus 用户来说，这笔账仍然划算：**最起码能用了**。
 - 请求体积数字来自某一个 Codex 版本。信绝对值之前请先用 `tools/capture_server.py` 自己量一次。
 - 中继在重试期间会一直挂着请求。重试预算很大 + 链路很慢时，一个回合可能「思考」很久才失败。
-- 启动脚本提供了 **Windows**（`scripts/install.ps1`）和 **macOS**（`scripts/install-mac.sh`）两份。中继本身跨平台、纯标准库，其他系统直接跑即可 —— 见[手动启动](#手动启动)。macOS 这条路在 GitHub 的 `macos-latest` runner（arm64、较新 macOS）上验证过；Intel Mac 和更老的系统还没测。
+- 启动脚本提供了 **Windows**（`scripts/install.ps1`）、**macOS**（`scripts/install-mac.sh`）和 **Linux**（`scripts/install-linux.sh`）三份。中继本身跨平台、纯标准库，其他系统直接跑即可 —— 见[手动启动](#手动启动)。macOS 这条路在 GitHub 的 `macos-latest` runner（arm64、较新 macOS）上验证过，Linux 这条在 `ubuntu-latest` 上验证过；Intel Mac、更老的 macOS 和没有 systemd 的 Linux 还没测。
 
 ---
 

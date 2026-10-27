@@ -1,0 +1,136 @@
+name: Linux launcher
+
+on:
+  push:
+    paths:
+      - 'scripts/*.sh'
+      - 'relay/relay.py'
+      - '.github/workflows/linux.yml'
+  pull_request:
+    paths:
+      - 'scripts/*.sh'
+      - 'relay/relay.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SERVICE: codex-overload-fix
+
+jobs:
+  systemd:
+    name: Linux launcher
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          bash --version | head -1
+          bash -n scripts/install-linux.sh
+          bash -n scripts/uninstall-linux.sh
+
+      - name: Dry run changes nothing
+        run: |
+          bash scripts/install-linux.sh --dry-run > /tmp/dry.txt
+          cat /tmp/dry.txt
+          grep -q 'ExecStart=' /tmp/dry.txt
+          test ! -e "$HOME/.config/systemd/user/$SERVICE.service"
+          echo "dry run wrote nothing"
+
+      - name: The unit is valid and its argv really starts the relay
+        run: |
+          bash scripts/install-linux.sh --no-autostart
+          U="$HOME/.config/systemd/user/$SERVICE.service"
+          test -f "$U"
+          # systemd-analyze parses the file for real; it is available on the runner.
+          systemd-analyze verify "$U" > /tmp/verify.txt 2>&1 || true
+          cat /tmp/verify.txt
+          if grep -qE 'Failed to parse|Invalid' /tmp/verify.txt; then
+            echo "systemd rejected the unit"
+            exit 1
+          fi
+          python3 - "$U" <<'PY'
+          import shlex, sys
+          line = next(l for l in open(sys.argv[1]) if l.startswith("ExecStart="))
+          argv = shlex.split(line[len("ExecStart="):].strip())
+          print("argv:", argv)
+          assert argv[0].startswith("/"), "ExecStart must use an absolute path"
+          assert argv[1].endswith("relay/relay.py"), "argv does not point at relay.py"
+          print("exec " + " ".join(shlex.quote(a) for a in argv))
+          PY
+          python3 - "$U" > /tmp/argv.sh <<'PY'
+          import shlex, sys
+          line = next(l for l in open(sys.argv[1]) if l.startswith("ExecStart="))
+          print("exec " + " ".join(shlex.quote(a) for a in
+                shlex.split(line[len("ExecStart="):].strip())))
+          PY
+          bash /tmp/argv.sh &
+          RELAY_PID=$!
+          python3 - <<'PY'
+          import socket, sys, time
+          deadline = time.time() + 20
+          while time.time() < deadline:
+              try:
+                  socket.create_connection(("127.0.0.1", 8787), timeout=0.5).close()
+                  sys.exit(0)
+              except OSError:
+                  time.sleep(0.25)
+          sys.exit("the unit argv never listened on 127.0.0.1:8787")
+          PY
+          echo "unit argv listens"
+          kill "$RELAY_PID" 2>/dev/null || true
+          wait "$RELAY_PID" 2>/dev/null || true
+          bash scripts/uninstall-linux.sh --purge
+
+      - name: systemd loads the service
+        run: |
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          set +e
+          systemctl --user show-environment > /dev/null 2>&1
+          have=$?
+          set -e
+          if [ "$have" -ne 0 ]; then
+            echo "::warning::systemd --user is unavailable in this CI session (not a unit problem; the step above already proved the argv)"
+            exit 0
+          fi
+          bash scripts/install-linux.sh
+          systemctl --user is-active "$SERVICE"
+          systemctl --user status "$SERVICE" --no-pager | head -n 15
+          python3 - <<'PY'
+          import socket, sys, time
+          deadline = time.time() + 20
+          while time.time() < deadline:
+              try:
+                  socket.create_connection(("127.0.0.1", 8787), timeout=0.5).close()
+                  print("listening on 127.0.0.1:8787")
+                  sys.exit(0)
+              except OSError:
+                  time.sleep(0.25)
+          sys.exit("nothing is listening on 127.0.0.1:8787 after install")
+          PY
+
+      - name: Relay log
+        if: always()
+        run: |
+          L="$HOME/.local/state/codex-overload-fix"
+          for f in relay.log; do
+            if [ -f "$L/$f" ]; then echo "--- $f ---"; cat "$L/$f"; fi
+          done
+          if command -v journalctl > /dev/null 2>&1; then
+            journalctl --user -u "$SERVICE" -n 50 --no-pager 2>/dev/null || true
+          fi
+
+      - name: Uninstall is clean
+        if: always()
+        run: |
+          bash scripts/uninstall-linux.sh --purge || true
+          test ! -e "$HOME/.config/systemd/user/$SERVICE.service"
+          test ! -e "$HOME/.local/state/codex-overload-fix"
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          if systemctl --user is-active "$SERVICE" > /dev/null 2>&1; then
+            echo "service is still active after uninstall"
+            exit 1
+          fi

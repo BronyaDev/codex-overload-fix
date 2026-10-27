@@ -59,6 +59,15 @@ script either. `bash scripts/uninstall-mac.sh` undoes it. This path is exercised
 runner in CI (`.github/workflows/macos.yml`), so a failure is a genuine bug — ask for the output of
 `launchctl print gui/$UID/com.codex-overload-fix.relay` and an issue.
 
+**Linux:** run `bash scripts/install-linux.sh`. It registers the relay as a systemd `--user` service
+(`~/.config/systemd/user/codex-overload-fix.service`) — no root, no `sudo`, and `Restart=always`
+replaces the watchdog. `bash scripts/uninstall-linux.sh` undoes it. This path is exercised on a real
+Ubuntu runner in CI (`.github/workflows/linux.yml`), so a failure is a genuine bug — ask for the
+output of `systemctl --user status codex-overload-fix` and an issue. Two things to check first: the
+unit does not inherit your shell, so a proxy must be passed with `--proxy` (HTTP only, no SOCKS),
+and on a machine you reach over SSH the service needs `--linger` (or `loginctl enable-linger $USER`)
+to survive logout.
+
 **Any other OS:** `relay/relay.py` is cross-platform and stdlib-only. Skip the installers and run it
 directly:
 
