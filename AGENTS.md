@@ -80,6 +80,24 @@ enough to kick a fullscreen game out of exclusive mode.
 Verify any change with `python tools\check_console_flash.py` before claiming a fix. See
 `docs/windows-no-console-window.md`.
 
+## If you are cutting a release
+
+**Build the zip with `python tools/make_release.py <tag>`, never by hand.** Both v1.0.0 and v1.1.0
+were assembled manually and v1.1.0 shipped broken: whichever tool built it rewrote `assets/*.png` as
+text, so CRLF became LF inside the PNG and both screenshots at the top of both READMEs are dead in
+that download. Nothing noticed, because nothing compared the archive with the tree it came from. The
+script now reads the file list from `git ls-tree`, the bytes from `git cat-file`, and reads the
+finished zip back to compare every entry against its blob before it reports success.
+
+Two things to know when using it:
+
+- Add `--expect <path>` for any file the release must carry that older tags did not have. That is
+  how a zip that predates a launcher gets caught instead of shipped.
+- The archive is byte-reproducible: same ref in, same sha256 out. If the hash changes between two
+  builds of one tag, something is tampering with the files, and that is the bug.
+
+The release notes carry the sha256; publish it only after `checks ok`.
+
 ## License
 
 MIT. Fork it, vendor it, ship it inside your own tooling — no permission needed.
