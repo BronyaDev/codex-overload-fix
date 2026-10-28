@@ -1,5 +1,35 @@
 # Codex Overload Fix
 
+## Windows: double-click setup (this fork)
+
+Download this fork's source ZIP, extract it to a permanent folder, and double-click:
+
+| Root script | Action |
+| --- | --- |
+| `install.cmd` | Runs the original `powershell -ExecutionPolicy Bypass -File scripts\install.ps1` with its default options, then configures Codex automatically. |
+| `remove-config.cmd` | Removes this setup's Codex settings, restoring the previous provider; leaves the relay and its autostart installed. |
+| `uninstall.cmd` | Removes the Codex settings first, then runs the original `scripts\uninstall.ps1` with its default options (logs are retained). |
+
+Python 3.9+ must be on PATH (or available through `py -3`); no administrator rights are needed.
+The active config is `$CODEX_HOME/config.toml`, or `%USERPROFILE%\.codex\config.toml` when
+`CODEX_HOME` is unset. Install uses the documented port **8787**. Existing settings are preserved,
+including the previous provider and an existing `openai-retry` table. Each write keeps a backup beside
+`config.toml`; `config.toml.overload-fix.json` records the entries this setup owns. Keep that file until
+removal. Removing settings preserves later edits to unrelated keys and a later provider selection;
+an edited relay table requires manual review instead of being silently overwritten. Inline or nested
+relay tables are refused. Do not delete/move the repository while installed: the original launcher
+runs `relay/relay.py` from this folder.
+
+Fully exit and reopen Codex after any action; these scripts never close Codex for you. A failure
+stays visible in the console and returns a nonzero exit code. If installation succeeds but configuration
+fails, the relay remains installed; correct the reported issue and rerun `install.cmd`. If config
+removal fails, `uninstall.cmd` leaves the relay running. Restore a backup manually if needed after
+reviewing any newer settings. To roll back the code, revert this fork's Windows setup commit.
+
+Validation: `python -m unittest discover -s tests -v`. Windows tests invoke the actual `.cmd` /
+PowerShell entry points in a path with spaces and Unicode, using temporary Codex configuration
+and stub installers so they do not modify your login startup or start/stop the real relay.
+
 A local retry shim that makes **"Selected model is at capacity. Please try a different model."** stop interrupting your work.
 
 > **Read this first: what this does not fix.**

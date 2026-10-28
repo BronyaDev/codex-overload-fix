@@ -1,5 +1,31 @@
 # Codex 满载修复
 
+## Windows 双击安装（本 fork 新增）
+
+下载本 fork 的源码 ZIP，解压到长期保留的文件夹，在根目录双击：
+
+| 脚本 | 功能 |
+| --- | --- |
+| `install.cmd` | 使用默认参数调用原有 `powershell -ExecutionPolicy Bypass -File scripts\install.ps1`，成功后自动修改 Codex 配置。 |
+| `remove-config.cmd` | 移除本工具的配置，恢复安装前的供应商设置；保留后台服务和开机启动。 |
+| `uninstall.cmd` | 先移除配置，再使用默认参数调用原有卸载脚本；保留日志。 |
+
+需要 PATH 中可用的 Python 3.9+，或 `py -3`；无需管理员权限。配置位置优先使用
+`CODEX_HOME/config.toml`，未设置时使用 `%USERPROFILE%\.codex\config.toml`，端口为默认的 **8787**。
+
+修改前在配置文件旁创建备份，并通过 `config.toml.overload-fix.json` 记录本次接管的配置；移除前请保留
+该记录。重复安装不会重复添加条目，移除时恢复原供应商及原有同名配置段，保留你后来修改的其他设置或
+新选择的供应商。如果手工改过本工具的配置段，脚本会停止并提示处理，不会直接覆盖；不支持自动接管
+内联或嵌套的同名配置段。安装后不要移动或删除仓库文件夹，原有启动器仍使用其中的 `relay/relay.py`。
+
+每次操作后，请自行完全退出并重新打开 Codex；脚本不会关闭 Codex。失败会显示错误并返回非零退出码。
+若后台安装成功但配置失败，后台仍保留，修正报错后重跑 `install.cmd` 即可；若配置移除失败，卸载入口
+不会继续停掉后台服务。需要手工恢复时，可核对较新的设置后使用旁边的备份。代码回滚可撤销本 fork 的
+Windows 安装入口提交。
+
+验证命令：`python -m unittest discover -s tests -v`。Windows 测试实际执行 CMD/PowerShell 入口，覆盖
+带空格和中文的路径、重复安装、配置恢复和错误退出；原安装/卸载使用测试替身，不修改真实开机启动或服务。
+
 一个本地重试中继，让 **「Selected model is at capacity. Please try a different model.」** 不再打断你干活。
 
 > **先说清楚它治不了什么。**
