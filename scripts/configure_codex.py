@@ -128,6 +128,12 @@ def same_block(actual, expected):
     return actual == expected or (actual is not None and expected is not None and actual.rstrip() == expected.rstrip())
 
 
+def relay_selected(root):
+    return bool(root and re.fullmatch(
+        r'''\s*(?:model_provider|"model_provider"|'model_provider')\s*=\s*["']openai-retry["']\s*(?:#.*)?''',
+        root.strip()))
+
+
 def replace(text, root, block):
     root_span, block_span = locations(text)
     edits = []
@@ -199,12 +205,15 @@ def apply(action, path):
         newline = '\r\n' if '\r\n' in text else '\n'
         expected_root = ROOT + newline
         expected_block = BLOCK.replace('\n', newline)
+        adopted_manual = relay_selected(piece(text, root_span))
         if action in ('check', 'install'):
             if state:
                 if piece(text, root_span) != state['installed_root'] or not same_block(piece(text, block_span), state['installed_block']):
                     raise ValueError("Relay entries changed since installation; remove or reconcile them first")
                 print("Relay configuration is already installed.")
                 return
+            if adopted_manual and block_span and not same_block(piece(text, block_span), expected_block):
+                raise ValueError("Active manual relay settings differ from defaults; review them before installation")
             updated = replace(text, expected_root, expected_block)
         else:
             if state:
@@ -214,7 +223,7 @@ def apply(action, path):
                     raise ValueError("Relay table changed since installation; review it before removal")
                 root = piece(text, root_span)
                 updated = replace(text, state['original_root'] if root == state['installed_root'] else root, state['original_block'])
-                if hashlib.sha256(current).hexdigest() == state['installed_hash']:
+                if not state.get('adopted_manual') and hashlib.sha256(current).hexdigest() == state['installed_hash']:
                     original = Path(state['backup']).read_bytes()
                     if hashlib.sha256(original).hexdigest() != state['original_hash']:
                         raise ValueError("Backup checksum mismatch")
@@ -222,7 +231,7 @@ def apply(action, path):
             else:
                 # Also undo the exact manual snippet documented by upstream.
                 root = piece(text, root_span)
-                remove_root = bool(root and re.fullmatch(r'''\s*model_provider\s*=\s*["']openai-retry["']\s*(?:#.*)?''', root.strip()))
+                remove_root = relay_selected(root)
                 if block_span and not same_block(piece(text, block_span), expected_block):
                     if remove_root:
                         raise ValueError("Untracked relay table differs from defaults; review it before removal")
@@ -239,8 +248,9 @@ def apply(action, path):
         if action == 'install':
             backup = path.with_name(path.name + '.overload-fix.' + uuid.uuid4().hex + '.bak')
             atomic_write(backup, current)
-            state = dict(config_path=str(path), backup=str(backup), original_root=piece(text, root_span),
-                         original_block=piece(text, block_span), installed_root=expected_root,
+            state = dict(config_path=str(path), backup=str(backup), adopted_manual=adopted_manual,
+                         original_root=None if adopted_manual else piece(text, root_span),
+                         original_block=None if adopted_manual else piece(text, block_span), installed_root=expected_root,
                          installed_block=expected_block, original_hash=hashlib.sha256(current).hexdigest(),
                          installed_hash=hashlib.sha256(output).hexdigest())
             atomic_write(state_path, json.dumps(state, ensure_ascii=False, indent=2).encode('utf-8'))

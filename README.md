@@ -12,7 +12,9 @@ Download this fork's source ZIP, extract it to a permanent folder, and double-cl
 
 Python 3.9+ must be on PATH (or available through `py -3`); no administrator rights are needed.
 The active config is `$CODEX_HOME/config.toml`, or `%USERPROFILE%\.codex\config.toml` when
-`CODEX_HOME` is unset. Install uses the documented port **8787**. Existing settings are preserved,
+`CODEX_HOME` is unset. Install uses the documented port **8787**. An already active manual default
+relay setup is adopted so removal returns to built-in OpenAI rather than restoring a dead relay route.
+Other existing settings are preserved,
 including the previous provider and an existing `openai-retry` table. Each write keeps a backup beside
 `config.toml`; `config.toml.overload-fix.json` records the entries this setup owns. Keep that file until
 removal. Removing settings preserves later edits to unrelated keys and a later provider selection;

@@ -104,6 +104,14 @@ description = ''' + "'''\nmodel_provider = 'also fake'\n'''\n"
         self.assertIn('model = "keep"', self.path.read_text())
         self.assertNotIn(config.PROVIDER, self.path.read_text())
 
+    def test_install_adopts_existing_manual_defaults_instead_of_restoring_dead_route(self):
+        self.write(config.ROOT + '\nmodel = "keep"\n\n' + config.BLOCK)
+        config.apply('install', self.path)
+        config.apply('remove', self.path)
+        self.assertIn('model = "keep"', self.path.read_text())
+        self.assertNotIn(config.PROVIDER, self.path.read_text())
+        config.apply('remove', self.path)
+
     def test_exclusive_lock_prevents_concurrent_write(self):
         lock = self.path.with_name('config.toml.overload-fix.lock')
         lock.touch()
